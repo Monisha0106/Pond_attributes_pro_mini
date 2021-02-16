@@ -8,12 +8,12 @@
 // #include <libxl.h>
 //#include <sandcastle.vscode-open>
 #define Turbidity_pin A2
-#define PH_pin A1
+#define PH_pin A0
 #define ONE_WIRE_BUS 3 
-SoftwareSerial SIM800L(11, 10);
+SoftwareSerial SIM800L(8,9);
 float tmp;
 float ph;
-int turb_v;
+int turbidity;
 float ammonia;
 String turb;
 String alert;
@@ -90,7 +90,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 
-float PH_calibration_value = 25.05;
+float PH_calibration_value = 30.75;
 int phval = 0; 
 int buffer_arr[100],temp;
 void print_temperature()
@@ -105,11 +105,11 @@ void print_temperature()
 void print_PH_Level()
 {
     for(int i=0;i<100;i++)  
-        buffer_arr[i]=analogRead(A1);
+        buffer_arr[i]=analogRead(A0);
     unsigned long int avgval=0;
-    for(int i=2;i<98;i++)
+    for(int i=2;i<100;i++)
         avgval+=buffer_arr[i];
-    float volt=(float)avgval*5.0/1024/96;
+    float volt=(float)avgval*5.0/1024/100;
     ph = -5.70 * volt + PH_calibration_value;
     // Serial.print("PH Level ");
     // Serial.println(ph_act);
@@ -169,44 +169,43 @@ float print_Ammonia_Level()
             }
     }
     ammonia = pgm_read_float(&A[ph_index][temp_index]);
+    Serial.println(ammonia);
         
 }  
 
 void print_Turbidity_Level()
 {
-    int sensorValue = analogRead(A0);
-    int turbidity = map(sensorValue, 0,640, 100, 0);
-    if (turbidity < 10) 
+    // int sensorValue = analogRead(A0);
+    // int turbidity = map(sensorValue, 0,640, 100, 0);
+    // put your main code here, to run repeatedly:
+    int tempo=analogRead(A2);
+    int senses=0;
+    for(int i=0;i<20;i++)
     {
-        // Serial.print("Turbidity level: ");
-        // Serial.println(turbidity);
-        // Serial.println("The water is clear ");
-        turb_v=turbidity;
-        turb="clear water";
+        senses=senses+tempo;
     }
-    else if ((turbidity > 10) && (turbidity < 30)) 
+
+    float sense=senses/20;
+//Serial.println(sense);
+    float turbidity=sense*(5.0/1024.0)*3.0*100;
+ 
+    if(turbidity>460)
     {
-        Serial.print("Turbidity level: ");
+        turb="Its clear";
+        Serial.println(turb);
         Serial.println(turbidity);
-        Serial.println("The water is cloudy ");
-        turb_v=turbidity;
-        turb="cloudy water";
     }
-    else if ((turbidity > 31) && (turbidity < 50)) 
+    else if (turbidity<360)
     {
-        // Serial.print("Turbidity level: ");
-        // Serial.println(turbidity);
-        // Serial.println("The water is very cloudy ");
-        turb_v=turbidity;
-        turb="very cloudy water";
+        turb="its very dirty";
+        Serial.println(turb);
+        Serial.println(turbidity);
     }
-    else if (turbidity > 50) 
-    {
-    //     Serial.print("Turbidity level: ");
-    //     Serial.println(turbidity);
-    //     Serial.println("The water is dirty ");
-     turb_v=turbidity;
-     turb="water is really dirty";
+    else
+    { 
+        turb="Its a bit cloudy";
+        Serial.println(turb);
+        Serial.println(turbidity);
     }
 }
 
@@ -284,7 +283,7 @@ SString Receive_Message()
         //Serial.println("Eikhaneo ashsi");
         Serial.println(textMessage);
     }
-    // Serial.println(textMessage);
+    Serial.println(textMessage);
 
     SString msg;
     String temp;
@@ -400,7 +399,7 @@ bool Execute_Command(String Command)
 //     Serial.println(current_water_meter_reading);
 //     return true;
 //   }
-    if(Command.indexOf("temp") > -1)//Command looks like this flow:xxxxxx
+    if(Command.indexOf("Temp") > -1)//Command looks like this flow:xxxxxx
     { 
         print_temperature();
         Serial.println("Temp coming");
@@ -409,7 +408,7 @@ bool Execute_Command(String Command)
         Send_Message(msg, Message.number);
         return true;
     }
-    else if(Command.indexOf("ph") > -1) // Command looks like ***getwater***
+    else if(Command.indexOf("Ph") > -1) // Command looks like ***getwater***
     { 
         print_PH_Level();
         print_temperature();
@@ -438,7 +437,7 @@ bool Execute_Command(String Command)
     else if(Command.indexOf("turbidity") > -1) // Command looks like reset
     { 
         print_Turbidity_Level();
-        String msg = "turbidity: " + String(turb_v) + "\n" + turb;
+        String msg = "turbidity: " + String(turbidity) + "\n" + turb;
         Serial.println(msg);
         Send_Message(msg, Message.number);
         return true;
@@ -447,7 +446,7 @@ bool Execute_Command(String Command)
     {   print_PH_Level();
         print_temperature();
         print_Turbidity_Level();
-        String msg = "temperature: " + String(tmp) + " C" + "\n" + "ph: " + String(ph) + "\n" + "Toxic ammonia percentage: " + String(ammonia) + "%" + "\n" + alert + "\n" + "turbidity: " + String(turb_v) + "\n" + turb;
+        String msg = "temperature: " + String(tmp) + " C" + "\n" + "ph: " + String(ph) + "\n" + "Toxic ammonia percentage: " + String(ammonia) + "%" + "\n" + alert + "\n" + "turbidity: " + String(turbidity) + "\n" + turb;
         Serial.println(msg);
         Send_Message(msg, Message.number);
         return true;
@@ -464,9 +463,8 @@ void loop(void)
     print_Ammonia_Level();
     print_PH_Level();
     print_Turbidity_Level();
-    //print_temperature();
-    //delay(1000);
-    //print_PH_Level();
+    print_temperature();
+    
     if (ph>11 || ph<4.0){
        // red_alert="Fishes are dying."
         Send_Message("Fishes are dying", "01521334490");
@@ -498,10 +496,5 @@ void loop(void)
     Serial.println("No new message was received");
   }
   delay(1000);
-//     print_temperature();
-//     Serial.println("");
-//     print_PH_Level();
-//     Serial.println("");
-//     print_Turbidity_Level();
-//     Serial.println("");
- }
+  //Send_Message("pakhi","01518441361");
+}
